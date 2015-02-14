@@ -1,0 +1,57 @@
+
+How to run
+
+    $ python ./localize.py
+
+
+
+===
+
+What is state space?
+    The robot is a holonomic moving in 2D space.
+    State is comprised of x, y and theta
+
+What is action or control space?
+    
+    Action is the isplacement of robot in the robot frame
+
+What is motion model?
+    
+    We need P(x_t | x_{t-1}, u_t)
+
+    u_t is the action. How do we get this?
+
+
+What is sensor model?
+
+What is the measurement?
+    
+    We have measurements from odometer and laser.
+
+    Laser : 180 values, each representing distance from obstacles, separated by 1 degree.
+
+Map size is 8000 cms by 8000 cms as given in map file.
+
+===
+
+TODO
+    
+    - Write function for read the map file
+    [Done]
+
+    - write function for reading log file
+    [DONE]
+
+    - write funtion for setting prior probabilites
+    [DONE]
+
+    - write update function
+
+    - work out sensor model
+
+    - write function for re-weighing the partciles
+
+    - write function for re-sampling
+
+    - write code for visualization
+    [somewhat written]
