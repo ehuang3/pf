@@ -83,6 +83,7 @@ class Visualization():
             im_temp[i][j][1] = 0
             im_temp[i][j][2] = 255
 
-        cv2.imwrite('map1.jpg', im_temp)
+        cv2.imwrite(str(self.count) + '.jpg', im_temp)
+        self.count = self.count + 1
 
         return

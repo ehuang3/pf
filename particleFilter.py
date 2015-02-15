@@ -140,10 +140,12 @@ class ParticleFilter():
         ''' Updates state of particles according to motion model 
         @param prevPos_W : 3-tuple (x, y, theta). Previous position of robot in
                            world frame
-        @param pos_Odom : 3-tuple (x, y, theta). New position of robot in odom 
-                          frame
-        @param prevPos_Odom : 3-tuple (x, y, theta). New position of robot in 
-                              odom frame '''
+        @param prevPos_Odom : 3-tuple (x, y, theta). Previous position of robot
+                           in odom frame
+        @param pos_Odom : 3-tuple (x, y, theta). New position of robot in 
+                              odom frame 
+        returns new position (a numpy array of length 3)
+        '''
 
         # Rnew : frame attached on robot at new position
         # Rprev : frame attached on robot at old position
@@ -216,7 +218,7 @@ class ParticleFilter():
         This steps through particle filter at time t and generate new belief state.
         @param X_prev : List of Particle instances. Particle set at time t-1 .
         @param u_t : Control action at time t
-        @param z_t : measurement at time t
+        @param z_t : measurement at time t. (list of 180 values)
         returns : List of Particle instances. Particle set at time t.
         '''
 
@@ -228,7 +230,8 @@ class ParticleFilter():
             update the particle using transition model (motion model)
             specify weight of the particle using sensor model
             add this particle to new set. '''
-        #for m in range(M):
+        for m in range(M):
+            x_t = _update(self.X[m].state, )
 
 
 
