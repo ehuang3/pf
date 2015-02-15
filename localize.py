@@ -19,9 +19,6 @@ from visualization import Visualization
 from map import Map
 from particleFilter import ParticleFilter
 
-
-
-
 if __name__ == '__main__':
     
     ''' Read map '''
@@ -49,6 +46,9 @@ if __name__ == '__main__':
         # read line only with laser data. Ignore others.
         if line[0] == 'L':
             z = np.zeros(180)
+            x_robot, y_robot, theta_robot = float(words[1]), float(words[2]), float(words[3])
+            x_laser, y_laser, theta_laser = float(words[4]), float(words[5]), float(words[6])
             words = line.split()
             for j in range(180):
-                z[j] = float(words[j+1])
+                z[j] = float(words[j + 7])
+            t = float(words[187])
