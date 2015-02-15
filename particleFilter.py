@@ -9,6 +9,10 @@
 import numpy as np
 from numpy.linalg import inv
 
+import random
+
+from map import Map
+
 def state_to_transform_2d(x):
     ct = np.cos(x[2]);
     st = np.sin(x[2]);
@@ -44,7 +48,7 @@ class laserReading():
 
 class SensorModel():
     def __init__(self, z_map, z_hit, z_short, z_max, z_rand):
-        """Beam based sensor model"""f
+        """Beam based sensor model"""
         self.z_T = np.array([z_hit, z_short, z_max, z_rand])
         self.initSensor(z_map)
 
@@ -106,8 +110,7 @@ class SensorModel():
         # Compute the probability of z_t given x_t
         p_z = z_hit * p_hit + z_rand * p_rand + (1 - p_hit - p_rand) * p_max
 
-        return p_z
-
+        return p_z  
 
 class ParticleFilter():
     ''' The particle filter '''
@@ -126,7 +129,9 @@ class ParticleFilter():
                 j = int(y/10.0)
                 if (map.grid[i][j] > 0.8):
                     for theta in np.linspace(-np.pi, np.pi, 10):
-                        self.X.append(Particle(x, y, theta, 1))
+                        w = random.random()
+                        #self.X.append(Particle(x, y, theta, 1))
+                        self.X.append(Particle(x, y, theta, w))
 
         return            
 
@@ -162,6 +167,50 @@ class ParticleFilter():
 
         return pos_W
 
+    # resample
+    def _resample(self, X):
+        '''
+        Sampling with replacement based on weights and generates new 
+        particle set
+        @param X : particle set
+        returns resampled particle set
+        '''
+        X_new = []
+        M = len(X)  # num of particle
+        weights = np.zeros(M)   # the default data type is float
+
+        totals = []
+        running_total = 0
+
+        for i in range(M):
+            running_total += X[i].weight
+            totals.append(running_total)
+
+        # sample with replacement
+        '''
+        for i in range(M):
+            rnd = random.random() * running_total
+            for ind, total in enumerate(totals):
+                if rnd < total:
+                    X_new.append(X[ind])
+        '''
+        rnds = []
+        for i in range(M):
+            rnd = random.random() * running_total
+            rnds.append(rnd)
+
+        ptr1 = 0
+        ptr2 = 0
+
+        while ptr1 < M and ptr2 < M:
+            if rnds[ptr1] <= totals[ptr2]:
+                X_new.append(X[ptr1])
+                ptr1 = ptr1 + 1
+            else:
+                ptr2 = ptr2 + 1
+
+        return X_new
+
     def step(self, X_prev, u_t, z_t):
         '''
         This steps through particle filter at time t and generate new belief state.
@@ -171,8 +220,8 @@ class ParticleFilter():
         returns : List of Particle instances. Particle set at time t.
         '''
 
-        X_t = None  # new partile set
-        M = X_prev.size # Number of particles
+        X_temp = None  # new partile set
+        M = len(self.X) # Number of particles
 
         '''
         For each particle 
@@ -182,22 +231,40 @@ class ParticleFilter():
         #for m in range(M):
 
 
+
         '''
         Generate new set of particles from above particle using sampling by 
         replacement. Each particle is chosen by probability proportional to 
         its importance weight. '''
+        self.X = _resample(X_temp)
+
         return None
 
 
 def testParticleFilter():
     print 'Testing the ParticleFilter class ...'
 
+    # Read map
+    map = Map()
+    map.readMap('../data/map/wean.dat')
+
     # basic tests
     filter = ParticleFilter()
+    filter.initParticles(map)
+    filter._resample(filter.X)
 
     # test for update function
     pos = filter._update((5.0, 6.0, 0.0), (1, 2, 0.0), (2, 2, 0.0))
     print pos # this should print something close to (6, 6, 0)
+
+    '''
+    ind = weighted_choice([0.4, 0, 0])
+    if ind != 0:
+        print 'FAILED weighted_choice test.'
+
+    ind = weighted_choice([0.4, .6, 0.2])
+    print 'ind = ', ind
+    '''
 
     return
 
