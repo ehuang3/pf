@@ -38,7 +38,7 @@ class Map():
             line = f.readline()
             words = line.split()
             for x in range(800):
-                self.grid[x][y] = float(words[799 - x])
+                self.grid[x][y] = float(words[x])
 
                 # cells for which value not known, make them occupied
                 if abs(self.grid[x][y] + 1) < 0.001:
