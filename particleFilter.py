@@ -44,15 +44,15 @@ class laserReading():
 
 class SensorModel():
     def __init__(self, z_map, z_hit, z_short, z_max, z_rand):
-        """Beam based sensor model"""f
+        """Beam based sensor model"""
         self.z_T = np.array([z_hit, z_short, z_max, z_rand])
         self.initSensor(z_map)
 
-    def initSensor(map):
+    def initSensor(self, map):
         """Build forward sensor model based on map"""
         self.map = map
 
-    def computeProbability(z_t, x_t):
+    def computeProbability(self, z_t, x_t):
         """Compute the probability of z_t at x_t"""
 
         # Get the robot's x, y, and theta in world coordinates.
@@ -80,7 +80,7 @@ class SensorModel():
 
         # Project measurements into world frame.
         x_z = x_w + np.multiply(z, cos_s)
-        y_z = y_w + np.multiply(z, cos_s)
+        y_z = y_w + np.multiply(z, sin_s)
 
         # Get grid cell indicies. The map origin is located at bottom left.
         x_z = x_z.astype('int32', copy=False)
@@ -104,7 +104,7 @@ class SensorModel():
         p_max[z < z_max] = 0
 
         # Compute the probability of z_t given x_t
-        p_z = z_hit * p_hit + z_rand * p_rand + (1 - p_hit - p_rand) * p_max
+        p_z = z_hit * p_hit + z_rand * p_rand + (1 - z_hit - z_rand) * p_max
 
         return p_z
 
