@@ -29,6 +29,72 @@ class laserReading():
         self.reading = np.zeros(180)
         return None
 
+class SensorModel():
+    def __init__(self, z_map, z_hit, z_short, z_max, z_rand):
+        """Beam based sensor model"""f
+        self.z_T = np.array([z_hit, z_short, z_max, z_rand])
+        self.initSensor(z_map)
+
+    def initSensor(map):
+        """Build forward sensor model based on map"""
+        self.map = map
+
+    def computeProbability(z_t, x_t):
+        """Compute the probability of z_t at x_t"""
+
+        # Get the robot's x, y, and theta in world coordinates.
+        x_r = x_t[0]
+        y_r = x_t[1]
+        t_r = x_t[2]
+
+        # Get the laser's x, y, and theta relative to odometry coordinates.
+        dx_l = z_t[3] - z_t[0]
+        dy_l = z_t[4] - z_t[1]
+        dt_l = z_t[5] - z_t[2]
+
+        # Compute the laser's x, y, and theta in word coordinates.
+        x_w = x_r + dx_l
+        y_w = y_r + dy_l
+        t_w = t_r + dt_l
+
+        # Build matrix of laser angles cosines and sines for projection.
+        t_s = np.linspace(0, np.pi, 180, true) # scan theta
+        cos_s = np.cos(t_w + t_s)
+        sin_s = np.sin(t_w + t_s)
+
+        # Get laser measurements.
+        z = z_t[6:]
+
+        # Project measurements into world frame.
+        x_z = x_w + np.multiply(z, cos_s)
+        y_z = y_w + np.multiply(z, cos_s)
+
+        # Get grid cell indicies. The map origin is located at bottom left.
+        x_z = x_z.astype('int32', copy=False)
+        y_z = y_z.astype('int32', copy=False)
+
+        # Clip coordinates to map size.
+        cols = self.map.shape[1]
+        rows = self.map.shape[0]
+        np.clip(x_z, 0, cols)
+        np.clip(y_z, 0, rows)
+
+        # Get occupancy probabilities associated with each laser reading.
+        p_hit = self.map[np.array([y_z, x_z])]
+
+        # Get error distribution.
+        p_rand = 1 / z_rand * np.ones(180)
+        p_rand[z > z_max] = 0
+
+        # Get the max threshold distribution.
+        p_max = np.ones(180)
+        p_max[z < z_max] = 0
+
+        # Compute the probability of z_t given x_t
+        p_z = z_hit * p_hit + z_rand * p_rand + (1 - p_hit - p_rand) * p_max
+
+        return p_z
+
 
 class ParticleFilter():
     ''' The particle filter '''
