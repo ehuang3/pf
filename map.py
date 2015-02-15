@@ -14,9 +14,9 @@ class Map():
     def __init__(self):
         '''
         -1  = don't know
-        any value in [0;1] is a probability for occupancy:
-         1   = occupied with probability 1
-         0   = unoccupied with probability 1
+        any value in [0;1] is a probability for unoccupied:
+         1   = unoccupied with probability 1
+         0   = occupied with probability 1
          0.5 = occupied with probability 0.5 '''
         self.grid = np.zeros((800, 800))
 
@@ -42,7 +42,7 @@ class Map():
 
                 # cells for which value not known, make them occupied
                 if abs(self.grid[x][y] + 1) < 0.001:
-                    self.grid[x][y] = 1
+                    self.grid[x][y] = 0
 
         return
 

@@ -44,7 +44,7 @@ class ParticleFilter():
                 # add only if it lies in free area
                 i = int(x/10.0)
                 j = int(y/10.0)
-                if (map.grid[i][j] < 0.5):
+                if (map.grid[i][j] > 0.8):
                     for theta in np.linspace(-np.pi, np.pi, 10):
                         self.X.append(Particle(x, y, theta, 1))
 

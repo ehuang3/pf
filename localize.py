@@ -31,13 +31,13 @@ if __name__ == '__main__':
 
     ''' Create Visualization '''
     vis = Visualization()
-    #vis.drawMap(map)
+    vis.drawMap(map)
 
 
     filter = ParticleFilter()
     filter.initParticles(map)
 
-    vis.drawParticles(filter.X, map.sizeX, map.sizeY)
+    vis.drawParticles(filter.X)
 
     # open log file
     logFile = open('../data/log/robotdata1.log','r');
