@@ -5,14 +5,42 @@ import numpy as np
 import scipy.stats
 import pylab as plt
 from map import Map
+from numpy.linalg import inv
 
 class LikelihoodField:
-    def __init__(self, grid, thresh, sigma, subsample):
+    def __init__(self, thresh, sigma, subsample):
         self.field = None
-        self.grid = grid
+        self.grid = None
         self.thresh = thresh
         self.sigma = sigma
         self.subsample = subsample
+        self.max_z = 5000
+        self.z_rand = 1.0 / self.max_z
+        self.z_hit = 0.85
+        self.z_max = 1 - self.z_hit - self.z_rand
+
+    def state_to_transform_2d(self, x):
+        ct = np.cos(x[2]);
+        st = np.sin(x[2]);
+        return np.array([
+            [ct, -st, x[0]],
+            [st, ct, x[1]],
+            [0., 0., 1.]])
+
+    def transform_to_state_2d(self, H):
+        return np.array([H[0,2], H[1,2], np.math.atan2(H[1,0], H[0,0])])
+
+    def loadMap(self, map_file):
+        f = open(map_file, 'r')
+        line = ''
+        while line[:6] != 'global':
+            line = f.readline()
+        self.grid = np.zeros([800,800])
+        for y in (range(800)):
+            line = f.readline()
+            words = line.split()
+            for x in range(800):
+                self.grid[y][x] = float(words[x])
 
     def computeField(self):
         print "Computing likelihood field..."
@@ -31,7 +59,7 @@ class LikelihoodField:
         field = self.field
 
         # Compute the size of the square to apply the gaussian over.
-        s_n = np.rint(sigma * 3 / 10)
+        s_n = np.rint(sigma * 3.5 / 10)
         if s_n % 2 == 0:
             s_n = s_n + 1
         s_n = int(s_n)
@@ -45,25 +73,18 @@ class LikelihoodField:
                 p = scipy.stats.norm.pdf(d, 0, sigma)
                 G[s_y, s_x] = p
 
-        # print G
-        # print grid
-        # print sum(sum(grid < 0.01))
-        # print sum(sum(grid > -0.5))
-
         for y in range(y_n):
             for x in range(x_n):
-                if grid[y, x] > thresh or grid[y, x] < -0.5:
-                    continue
-                for s_y in range(s_n):
-                    for s_x in range(s_n):
-                        g_y = np.clip(y + s_y - s_m, 0, y_n-1)
-                        g_x = np.clip(x + s_x - s_m, 0, x_n-1)
-                        field[g_y, g_x] = np.max([field[g_y, g_x], G[s_y, s_x]])
-                        # print G[s_y, s_x]
-                        # print field[g_y, g_x]
-
-        # print sum(sum(field > 0.1))
-        # print field
+                if grid[y, x] < -0.5:
+                    field[y, x] = self.z_rand
+                elif grid[y, x] > thresh:
+                    pass
+                else:
+                    for s_y in range(s_n):
+                        for s_x in range(s_n):
+                            g_y = np.clip(y + s_y - s_m, 0, y_n-1)
+                            g_x = np.clip(x + s_x - s_m, 0, x_n-1)
+                            field[g_y, g_x] = np.max([field[g_y, g_x], G[s_y, s_x]])
 
         print "Finished computing likelihood field."
 
@@ -77,15 +98,16 @@ class LikelihoodField:
     def loadField(self, fpath):
         self.field = np.loadtxt(fpath)
 
-    def computeProbability(self, x_t, z_t):
-                # Get the laser's x, y, and theta
-        T_laser2odom = state_to_transform_2d(z_t[3:6])
-        T_robot2odom = state_to_transform_2d(z_t[0:3])
-        T_robot2world = state_to_transform_2d(x_t)
+    # @profile
+    def computeProbability(self, z_t, x_t):
+        # Get the laser's x, y, and theta
+        T_laser2odom = self.state_to_transform_2d(z_t[3:6])
+        T_robot2odom = self.state_to_transform_2d(z_t[0:3])
+        T_robot2world = self.state_to_transform_2d(x_t)
         T_laser2world = np.dot(T_robot2world, np.dot(inv(T_robot2odom), T_laser2odom))
 
         # Convert laser to world frame x y theta.
-        l_w = transform_to_state_2d(T_laser2world)
+        l_w = self.transform_to_state_2d(T_laser2world)
 
         # Compute the laser's x, y, and theta in word coordinates.
         x_w = l_w[0]
@@ -93,10 +115,11 @@ class LikelihoodField:
         t_w = l_w[2]
 
         # The indicies we should subsample at.
-        t_sub = np.linspace(0, 180, self.subsample, endpoint=False, dtype='int32')
+        t_step = 180 / self.subsample
+        t_sub = np.arange(0, 180, t_step)
 
         # Build matrix of laser angles cosines and sines for projection.
-        t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 180, endpoint=True, dtype='int32') # scan theta
+        t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 180, endpoint=True) # scan theta
         t_s = t_s[t_sub]        # subsample
         cos_s = np.cos(t_w + t_s)
         sin_s = np.sin(t_w + t_s)
@@ -114,8 +137,8 @@ class LikelihoodField:
         y_z = y_z.astype('int32', copy=False)
 
         # Clip coordinates to map size.
-        cols = self.map.grid.shape[1]
-        rows = self.map.grid.shape[0]
+        cols = self.field.shape[1]
+        rows = self.field.shape[0]
         x_z = np.clip(x_z, 0, cols-1)
         y_z = np.clip(y_z, 0, rows-1)
 
@@ -123,16 +146,15 @@ class LikelihoodField:
         p_hit = self.field[y_z, x_z]
 
         # # Get error distribution.
-        # p_rand = 1 / self.z_rand * np.ones(180)
-        # p_rand[z > self.z_max] = 0
+        p_rand = 1 / self.z_rand * np.ones(t_sub.size)
+        p_rand[z_laser > self.z_max] = 0
 
         # # Get the max threshold distribution.
-        # p_max = np.ones(180)
-        # p_max[z < self.z_max] = 0
+        p_max = np.ones(t_sub.size)
+        p_max[z_laser < self.z_max] = 0
 
         # Compute the probability of z_t given x_t
-        # p_z = self.z_hit * p_hit + self.z_rand * p_rand + self.z_max * p_max
-        p_z = self.z_hit * p_hit
+        p_z = self.z_hit * p_hit + self.z_rand * p_rand + self.z_max * p_max
 
         weight = np.exp(np.sum(np.log(p_z)))
 
@@ -146,19 +168,19 @@ def main():
     parser = argparse.ArgumentParser(description='Laser unit test')
     parser.add_argument('--map', type=str, default='./data/map/wean.dat', help='Ground truth occupancy map')
     parser.add_argument('--log', type=str, default='./data/log/robotdata1.log', help='Robot data log file')
+    parser.add_argument('--save', type=str, default='', help='Save field')
+    parser.add_argument('--load', type=str, default='', help='Load field')
+    parser.add_argument('--sigma', type=float, default=20, help='Sigma')
     args = parser.parse_args()
 
-    # Read in map.
-    map = Map()
-    map.readMap(args.map)
-
-    # plt.imshow(map.grid, norm=matplotlib.colors.Normalize(0, 1))
-    # plt.show()
-
-    L = LikelihoodField(map.grid, 0.01, 30, 8)
-    # L.computeField()
-    # L.saveField("config/lfield.csv")
-    L.loadField("config/lfield.csv")
+    L = LikelihoodField(0.01, args.sigma, 8)
+    if args.load:
+        L.loadField(args.load)
+    else:
+        L.loadMap(args.map)
+        L.computeField()
+    if args.save:
+        L.saveField(args.save)
     L.plotField()
     plt.show()
 
