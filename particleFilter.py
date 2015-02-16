@@ -63,6 +63,12 @@ class SensorModel():
         self.z_rand = z_rand
         self.initSensor(z_map)
 
+        # Ray search 
+        self.ray_sigma = 20
+        self.ray_pdf = np.zeros(self.ray_sigma * 4 + 10)
+        for i in range(self.ray_pdf.size):
+            self.ray_pdf[i] = norm.pdf(i, 0, self.ray_sigma)
+
     def initSensor(self, map):
         """Build forward sensor model based on map"""
         self.map = map
@@ -78,7 +84,7 @@ class SensorModel():
         y = int(pos_world[1]/10)
         t = int(pos_world[2])   # theta
 
-        for d in range(0, 800, 2):
+        for d in range(0, 300, 2):
             cell_x = int(x + d*cos(t + angle))
             cell_y = int(y + d*sin(t + angle))
             
@@ -91,7 +97,39 @@ class SensorModel():
             if self.map.grid[cell_x, cell_y] < 0.2:
                 return d*10.0
 
+        return d * 10.0
 
+    def raySearch(self, pos_world, angle, laser, sigma):
+        """
+        Returns the distance of the nearest obstable within bounds or the bound.
+        @param pos_world: [x y theta]. pos of laser in world frame.
+        @param angle: angle in which direction to look in radians
+
+        """
+        x = int(pos_world[0]/10)
+        y = int(pos_world[1]/10)
+        t = int(pos_world[2])   # theta
+
+        d_max = sigma * 4
+
+        dray = np.array([cos(t + angle), sin(t + angle)])
+
+        for d in range(0, d_max, 10):
+            for s in [-1, 1]:
+                cell_x = int(x + (laser + s*d)*dray[0])
+                cell_y = int(y + (laser + s*d)*dray[1])
+
+                if cell_x > 799 or cell_x < 0:
+                    return d_max
+                if cell_y > 799 or cell_y < 0:
+                    return d_max
+
+                if self.map.grid[cell_x, cell_y] < 0.2:
+                    return d
+
+        return d_max
+
+    # @profile
     def computeProbability(self, z_t, x_t):
         """Compute the probability of z_t at x_t
         @param: z_t : laser data including odometery
@@ -146,9 +184,12 @@ class SensorModel():
         # Get occupancy probabilities associated with each laser reading.
         #p_hit = 1 - self.map.grid[y_z, x_z]
         p_hit = []
+        sigma = self.ray_sigma
         for i in range(8):
-            actualReading = self.rayTrace(l_w, t_s[i])
-            p = norm.pdf(z[i], actualReading, 500)
+            # actualReading = self.rayTrace(l_w, t_s[i])
+            # p = norm.pdf(z[i], actualReading, sigma)
+            d = self.raySearch(l_w, t_s[i], z[i], sigma)
+            p = self.ray_pdf[d]
             #print 'p', p
             #print 'acutalReading', acutalReading
             #print 'measuredReading', z[i]
@@ -328,8 +369,7 @@ class ParticleFilter():
         
         return X_new
 
-
-
+    # @profile
     def step(self, pos_prev, pos_curr, z_t):
         '''
         This steps through particle filter at time t and generate new belief state.
