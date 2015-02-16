@@ -10,6 +10,7 @@ from map import Map
 from graphics import *
 
 import numpy as np
+import pylab as plt
 
 import cv2
 
@@ -67,10 +68,15 @@ class Visualization():
                 self.im[x][y][1] = c
                 self.im[x][y][2] = c
 
-        cv2.imwrite('map_temp.jpg', self.im)
-
+        cv2.imwrite('test/map_temp.jpg', self.im)
 
         return
+
+    def plotMap(self, map):
+        x = np.linspace(0, 8000, 800)
+        y = np.linspace(0, 8000, 800)
+        xv, yv = np.meshgrid(x, y, sparse=False, indexing='ij')
+        plt.scatter(xv, yv, c=map.grid.flatten(), s=500)
 
     def drawParticles(self, X):
         ''' Visualize the partiles '''
@@ -91,7 +97,7 @@ class Visualization():
             im_temp[i][j][1] = 0
             im_temp[i][j][2] = 255
 
-        cv2.imwrite(str(self.count) + '.jpg', im_temp)
+        cv2.imwrite('test/' + str(self.count) + '.jpg', im_temp)
         self.count = self.count + 1
 
         return

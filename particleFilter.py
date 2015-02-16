@@ -9,7 +9,11 @@
 import numpy as np
 from numpy.linalg import inv
 from visualization import *
+import pylab as plt
 
+import copy
+
+from joblib import Parallel, delayed
 
 import random
 
@@ -26,8 +30,10 @@ def state_to_transform_2d(x):
 def transform_to_state_2d(H):
     return np.array([H[0,2], H[1,2], np.math.atan2(H[1,0], H[0,0])])
 
-
-
+def update(i, pos_prev, pos_curr, z_t, X_update):
+    x_m = self._update(self.X[m].state, pos_prev, pos_curr)
+    w_m = self.sensor_model.computeProbability(z_t, x_m)
+    X_update[i] = Particle(x_m[0], x_m[1], x_m[2], w_m)
 
 class Pos():
     ''' Posiition of the robot '''
@@ -75,7 +81,7 @@ class SensorModel():
         t_w = l_w[2]
 
         # Build matrix of laser angles cosines and sines for projection.
-        t_s = np.linspace(0, np.pi, 180, True) # scan theta
+        t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 180, True) # scan theta
         cos_s = np.cos(t_w + t_s)
         sin_s = np.sin(t_w + t_s)
 
@@ -120,6 +126,7 @@ class ParticleFilter():
         self.X = []  # set of particles
         self.prevPos = None
         self.sensor_model = []
+        self.X_update = []
         return
 
     def setSensorModel(self, sensor_model):
@@ -127,6 +134,8 @@ class ParticleFilter():
 
     def initParticles(self, map):
         ''' uniforly distributes the particles in free areas '''
+        self.X = []
+        self.X_update = []
 
         for x in np.linspace(0, 7999, 100):
             for y in np.linspace(0, 7999, 100):
@@ -138,6 +147,9 @@ class ParticleFilter():
                         w = random.random()
                         #self.X.append(Particle(x, y, theta, 1))
                         self.X.append(Particle(x, y, theta, w))
+
+        self.X_update = copy.copy(self.X)
+
         return
 
     def run(self, map, z):
@@ -145,7 +157,6 @@ class ParticleFilter():
         self.initParticles(map)
 
         vis = Visualization()
-
         vis.drawMap(map)
 
         # Outer loop.
@@ -187,9 +198,9 @@ class ParticleFilter():
         pos_W = transform_to_state_2d(T_Rnew2W)
 
         # Maybe we can add some noise
-        pos_W[0] = pos_W[0] + np.random.normal(0, 1)
-        pos_W[1] = pos_W[1] + np.random.normal(0, 1)
-        pos_W[2] = pos_W[2] + np.random.normal(0, 0.01)
+        # pos_W[0] = pos_W[0] + np.random.normal(0, 1)
+        # pos_W[1] = pos_W[1] + np.random.normal(0, 1)
+        # pos_W[2] = pos_W[2] + np.random.normal(0, 0.01)
 
         return pos_W
 
@@ -237,6 +248,8 @@ class ParticleFilter():
 
         return X_new
 
+
+
     def step(self, pos_prev, pos_curr, z_t):
         '''
         This steps through particle filter at time t and generate new belief state.
@@ -254,16 +267,24 @@ class ParticleFilter():
             update the particle using transition model (motion model)
             specify weight of the particle using sensor model
             add this particle to new set. '''
+        w = np.zeros(M)
         for m in range(M):
             x_m = self._update(self.X[m].state, pos_prev, pos_curr)
             w_m = self.sensor_model.computeProbability(z_t, x_m)
-            X_temp.append(Particle(x_m[0], x_m[1], x_m[2], w_m))
+            w[m] = w_m
+            self.X_update[m] = Particle(x_m[0], x_m[1], x_m[2], w_m)
+
+        print M
+        print w
+        plt.hist(w, 1000)
+        # plt.hist(w, 100, normed=1, histtype='bar')
+        plt.show()
 
         '''
         Generate new set of particles from above particle using sampling by 
         replacement. Each particle is chosen by probability proportional to 
         its importance weight. '''
-        self.X = self._resample(X_temp)
+        self.X = self._resample(self.X_update)
 
         return None
 
