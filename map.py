@@ -44,6 +44,12 @@ class Map():
                 if abs(self.grid[x][y] + 1) < 0.001:
                     self.grid[x][y] = 0
 
+                if self.grid[x][y] < 0.8:
+                    self.grid[x][y] = 0.0
+
+                else:
+                    self.grid[x][y] = 1.0
+
         return
 
     def printMap(self):

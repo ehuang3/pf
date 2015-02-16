@@ -49,6 +49,9 @@ def main():
                 num_laser += 1
                 z.append(np.array(token[1:]))
 
+    n = len(z)
+    z = [z[i] for i in range(0, n-1, 3)]
+
     # Convert z into full numpy array.
     z = np.array(z, dtype='float64')
 

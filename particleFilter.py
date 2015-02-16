@@ -39,6 +39,11 @@ def update(i, pos_prev, pos_curr, z_t, X_update):
     w_m = self.sensor_model.computeProbability(z_t, x_m)
     X_update[i] = Particle(x_m[0], x_m[1], x_m[2], w_m)
 
+def normpdf(x, mu, sigma):
+    u = (x-mu)/abs(sigma)
+    y = (1/(sqrt(2*pi)*abs(sigma)))*exp(-u*u/2)
+    return y
+
 class Pos():
     ''' Posiition of the robot '''
     def __init__(x, y, theta):
@@ -64,10 +69,20 @@ class SensorModel():
         self.initSensor(z_map)
 
         # Ray search 
-        self.ray_sigma = 20
+        self.ray_sigma = 200 #20
         self.ray_pdf = np.zeros(self.ray_sigma * 4 + 10)
         for i in range(self.ray_pdf.size):
             self.ray_pdf[i] = norm.pdf(i, 0, self.ray_sigma)
+
+        self.laserMap = np.zeros((800, 800, 16))
+
+    def buildRayTraceLookupTable():
+        angles = np.linspace(-np.pi, np.pi, 16)
+        for x in range(800):
+            for y in range(800):
+                for angle in range(16):
+                    self.rayTrace(x*10.0, y*10.0, 0)
+
 
     def initSensor(self, map):
         """Build forward sensor model based on map"""
@@ -84,14 +99,15 @@ class SensorModel():
         y = int(pos_world[1]/10)
         t = int(pos_world[2])   # theta
 
-        for d in range(0, 300, 2):
+        for d in range(0, 300, 3):
             cell_x = int(x + d*cos(t + angle))
             cell_y = int(y + d*sin(t + angle))
             
-            if cell_x > 799 or cell_x < 0:
+            if cell_x > 799 or cell_x < 0 or cell_y > 799 or cell_y < 0:
                 return d * 10.0
-            if cell_y > 799 or cell_y < 0:
-                return d * 10.0
+
+            if d > 300:
+                return d*10.0
 
             # if cell is occupied
             if self.map.grid[cell_x, cell_y] < 0.2:
@@ -154,13 +170,14 @@ class SensorModel():
         #t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 180, True) # scan theta
         
         # select 8 values
-        t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 8, True) # scan theta
+        n = 8 # number of laser reading
+        t_s = np.linspace(-np.pi/2.0, np.pi/2.0, n, True) # scan theta
         #cos_s = np.cos(t_w + t_s)
         #sin_s = np.sin(t_w + t_s)
 
         # Get laser measurements.
         #z = z_t[6:]
-        ind = np.linspace(0, 179, 8)
+        ind = np.linspace(0, 179, n)
         z = [ z_t[int(i) + 6] for i in ind]
         #z = []
         #for i in ind:
@@ -186,11 +203,12 @@ class SensorModel():
         #p_hit = 1 - self.map.grid[y_z, x_z]
         p_hit = []
         sigma = self.ray_sigma
-        for i in range(8):
-            # actualReading = self.rayTrace(l_w, t_s[i])
-            # p = norm.pdf(z[i], actualReading, sigma)
-            d = self.raySearch(l_w, t_s[i], z[i], sigma)
-            p = self.ray_pdf[d]
+        for i in range(n):
+            actualReading = self.rayTrace(l_w, t_s[i])
+            #p = norm.pdf(z[i], actualReading, 200)
+            p = normpdf(z[i], actualReading, 500)
+            #d = self.raySearch(l_w, t_s[i], z[i], sigma)
+            #p = self.ray_pdf[d]
             #print 'p', p
             #print 'acutalReading', acutalReading
             #print 'measuredReading', z[i]
@@ -208,7 +226,7 @@ class SensorModel():
 
         # Compute the probability of z_t given x_t
         #p_z = self.z_hit * p_hit + self.z_rand * p_rand + self.z_max * p_max
-        p_z = p_hit + 0.000001 # avoid zero in the log
+        p_z = p_hit + 0.000000000000000000000000000000001 # avoid zero in the log
 
         weight = np.exp(np.sum(np.log(p_z)))
 
@@ -233,8 +251,8 @@ class ParticleFilter():
         self.X = []
         self.X_update = []
 
-        for x in np.linspace(0, 7999, 50):
-            for y in np.linspace(0, 7999, 50):
+        for x in np.linspace(0, 7999, 100):
+            for y in np.linspace(0, 7999, 100):
                 # add only if it lies in free area
                 i = int(x/10.0)
                 j = int(y/10.0)
@@ -249,6 +267,7 @@ class ParticleFilter():
 
         return
 
+    #@profile
     def run(self, map, z):
         '''
         map : instance of class map
@@ -260,11 +279,16 @@ class ParticleFilter():
         vis = Visualization()
         vis.drawMap(map)
 
+
         # Outer loop.
         pos_prev = z[0, 0:3]
         for i in range(z.shape[0]):
             pos_curr = z[i, 0:3]
             z_t = z[i, 0:186]
+
+            # clip the sensor readings
+            z_t = np.clip(z_t, -3000, 3000)
+
             self.step(pos_prev, pos_curr, z_t)
             pos_prev = pos_curr
             vis.drawParticles(self.X)
@@ -277,11 +301,12 @@ class ParticleFilter():
                     maxW = p.weight
                     maxInd = ind
 
-            t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 8, True) # scan theta
-            ind = np.linspace(0, 179, 8)
+            t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 4, True) # scan theta
+            ind = np.linspace(0, 179, 4)
             zTemp = [ z[i, int(each) + 6] for each in ind]
 
             vis.drawLaser(self.X[maxInd].state, zTemp, t_s)
+            #vis.drawParticles([self.X[maxInd]])
 
             text = 'frame = ' + str(i) + ', t = ' + str(z[i, 186])
             vis.writeText(text)
@@ -319,9 +344,9 @@ class ParticleFilter():
         pos_W = transform_to_state_2d(T_Rnew2W)
 
         # Maybe we can add some noise
-        pos_W[0] = pos_W[0] + np.random.normal(0, 2)
-        pos_W[1] = pos_W[1] + np.random.normal(0, 2)
-        pos_W[2] = pos_W[2] + np.random.normal(0, 0.05)
+        pos_W[0] = pos_W[0] + np.random.normal(0, 30)
+        pos_W[1] = pos_W[1] + np.random.normal(0, 30)
+        pos_W[2] = pos_W[2] + np.random.normal(0, 0.20)
 
         return pos_W
 
@@ -358,13 +383,17 @@ class ParticleFilter():
 
         # Uniformly sample from the running total.
         i = 0
-        for r in np.linspace(0, running_total, M, endpoint=False):
+        for r in np.linspace(0, running_total, M/2, endpoint=False):
             while totals[i] <= r:
                 i = i + 1
             if r < totals[i]:
                 X_new.append(X[i])
 
-        
+        # add some particle to decrease convergence
+        for i in range(M/2):
+            X_new.append(X[2*i])
+
+
         '''
         for i in range(M):
             X_new.append(X[int(random.random()*M)])
@@ -404,6 +433,14 @@ class ParticleFilter():
         returns : List of Particle instances. Particle set at time t.
         '''
 
+        # if robot doesn't move, do nothing
+        if abs(pos_prev[0] - pos_curr[0]) < 0.1:   # 1 mm
+            return None
+        if abs(pos_prev[1] - pos_curr[1]) < 0.01:  # 1 mm
+            return None
+        if abs(pos_prev[2] - pos_curr[2]) < 0.005:  # 0.25 deg
+            return None
+
         X_temp = []  # new partile set
         M = len(self.X) # Number of particles
 
@@ -434,6 +471,8 @@ class ParticleFilter():
         replacement. Each particle is chosen by probability proportional to 
         its importance weight. '''
         self.X = self._resample(self.X_update)
+        #self.X = self.X_update
+
 
         return None
 

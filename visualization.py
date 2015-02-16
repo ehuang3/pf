@@ -100,6 +100,8 @@ class Visualization():
             self.im1[i][j][1] = 0
             self.im1[i][j][2] = 255
 
+            #cv2.circle(self.im1, (int(j), int(i)), 1, (0, 255, 0), -1)
+
         return
 
     def drawLaser(self, pos, z, angles):
@@ -114,22 +116,16 @@ class Visualization():
         t = pos[2]
 
         # Draw green filled circle as robot
-        cv2.circle(self.im1, (x,y), 3, (255, 0, 0), -1)
+        cv2.circle(self.im1, (y,x), 3, (255, 0, 0), -1)
+        #cv2.circle(self.im1, (20, 20), 3, (255, 0, 0), -1)
 
 
         # Draw lines for laser
         for i in range(len(z)):
             d = z[i]/10.0
-            #print x
-            #print y
-            #print t
-            #print angles[i]
-            #print d
-            #print np.cos(t + angles[i])
-            #print z
             x_end = int(x + d*np.cos(t + angles[i]))
             y_end = int(y + d*np.sin(t + angles[i]))
-            cv2.line(self.im1, (x, y), (x_end, y_end), (0, 255, 0))
+            cv2.line(self.im1, (y, x), (y_end, x_end), (0, 255, 0))
 
 
     def writeText(self, text):
