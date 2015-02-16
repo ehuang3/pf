@@ -16,7 +16,7 @@ class LikelihoodField:
         self.subsample = subsample
         self.max_z = 5000
         self.z_rand = 1.0 / self.max_z
-        self.z_hit = 0.8
+        self.z_hit = 0.85
         self.z_max = 1 - self.z_hit - self.z_rand
 
     def state_to_transform_2d(self, x):
@@ -40,7 +40,7 @@ class LikelihoodField:
             line = f.readline()
             words = line.split()
             for x in range(800):
-                self.grid[x][y] = float(words[x])
+                self.grid[y][x] = float(words[x])
 
     def computeField(self):
         print "Computing likelihood field..."
