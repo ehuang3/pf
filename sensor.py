@@ -133,8 +133,12 @@ class LikelihoodField:
         y_z = (y_w + np.multiply(z_laser, sin_s)) / 10.0
 
         # Get grid cell indicies. The map origin is located at bottom left.
-        x_z = x_z.astype('int32', copy=False)
-        y_z = y_z.astype('int32', copy=False)
+        # x_z = x_z.astype('int32', copy=False)
+        x_z = [int(each) for each in x_z]
+        x_z = np.array(x_z)
+        #y_z = y_z.astype('int32', copy=False)
+        y_z = [int(each) for each in y_z]
+        y_z = np.array(y_z)
 
         # Clip coordinates to map size.
         cols = self.field.shape[1]
