@@ -21,11 +21,13 @@ from visualization import Visualization
 from map import Map
 from particleFilter import ParticleFilter
 from particleFilter import SensorModel
+from sensor import LikelihoodField
 
 def main():
     parser = argparse.ArgumentParser(description='Laser unit test')
     parser.add_argument('--map', type=str, default='../data/map/wean.dat', help='Ground truth occupancy map')
     parser.add_argument('--log', type=str, default='../data/log/robotdata1.log', help='Robot data log file')
+    parser.add_argument('--lfield', type=str, default='./config/lfield_40.csv', help='Likelihood field')
     args = parser.parse_args()
 
     # Read in map.
@@ -52,9 +54,14 @@ def main():
     # Convert z into full numpy array.
     z = np.array(z, dtype='float64')
 
+    # Load likelihood field.
+    L = LikelihoodField(0.01, 40, 8)
+    L.loadField(args.lfield)
+
     # Run filter
     filter = ParticleFilter()
-    filter.setSensorModel(SensorModel(map, 0.7, 0.29, 0.01))
+    # filter.setSensorModel(SensorModel(map, 0.7, 0.29, 0.01))
+    filter.setLikelihoodField(L)
     filter.run(map, z)
 
 

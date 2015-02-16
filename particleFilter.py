@@ -2,7 +2,7 @@
     Created On: Feb 13, 2015
     Author: Nehchal Jindal
             Eric Huang
-
+n
     Desc: Implementationo of Particle Filter
 '''
 
@@ -17,7 +17,13 @@ import copy
 
 from scipy.stats import norm
 
+from sensor import LikelihoodField
+
 #from joblib import Parallel, delayed
+
+from multiprocessing.pool import ThreadPool
+from multiprocessing import Pool
+from functools import partial
 
 import random
 
@@ -34,10 +40,16 @@ def state_to_transform_2d(x):
 def transform_to_state_2d(H):
     return np.array([H[0,2], H[1,2], np.math.atan2(H[1,0], H[0,0])])
 
-def update(i, pos_prev, pos_curr, z_t, X_update):
-    x_m = self._update(self.X[m].state, pos_prev, pos_curr)
-    w_m = self.sensor_model.computeProbability(z_t, x_m)
-    X_update[i] = Particle(x_m[0], x_m[1], x_m[2], w_m)
+def update(pos_prev, pos_curr, z_t, PF, i):
+    # x_m = self._update(self.X[m].state, pos_prev, pos_curr)
+    # w_m = self.sensor_model.computeProbability(z_t, x_m)
+    # X_update[i] = Particle(x_m[0], x_m[1], x_m[2], w_m)
+    x_m = PF._update(PF.X[i].state, pos_prev, pos_curr)
+    if PF.sensor_model:
+        w_m = PF.sensor_model.computeProbability(z_t, x_m)
+    elif PF.lfield:
+        w_m = PF.lfield.computeProbability(z_t, x_m)
+    PF.X_update[i] = Particle(x_m[0], x_m[1], x_m[2], w_m)
 
 class Pos():
     ''' Posiition of the robot '''
@@ -64,7 +76,7 @@ class SensorModel():
         self.initSensor(z_map)
 
         # Ray search 
-        self.ray_sigma = 20
+        self.ray_sigma = 100
         self.ray_pdf = np.zeros(self.ray_sigma * 4 + 10)
         for i in range(self.ray_pdf.size):
             self.ray_pdf[i] = norm.pdf(i, 0, self.ray_sigma)
@@ -222,10 +234,15 @@ class ParticleFilter():
         self.prevPos = None
         self.sensor_model = []
         self.X_update = []
+        self.lfield = []
+        # self.pool = Pool(4)
         return
 
     def setSensorModel(self, sensor_model):
         self.sensor_model = sensor_model
+
+    def setLikelihoodField(self, lfield):
+        self.lfield = lfield
 
     def initParticles(self, map):
         ''' uniforly distributes the particles in free areas '''
@@ -319,18 +336,6 @@ class ParticleFilter():
             running_total += X[i].weight
             totals.append(running_total)
 
-        # sample with replacement
-        # print 'totals', totals
-
-        
-        # for i in range(M):
-        #     rnd = random.random() * running_total
-        #     for ind, total in enumerate(totals):
-        #         if rnd < total:
-        #             X_new.append(X[ind])
-        #             # print ind
-        #             break
-
         # Uniformly sample from the running total.
         i = 0
         for r in np.linspace(0, running_total, M, endpoint=False):
@@ -339,34 +344,6 @@ class ParticleFilter():
             if r < totals[i]:
                 X_new.append(X[i])
 
-        
-        '''
-        for i in range(M):
-            X_new.append(X[int(random.random()*M)])
-        '''
-
-        '''
-        rnds = []
-        for i in range(M):
-            rnd = random.random() * running_total
-            rnds.append(rnd)
-
-        rnds.sort()
-        ptr1 = 0
-        ptr2 = 0
-
-        print rnds
-
-        while ptr1 < M and ptr2 < M:
-            if rnds[ptr1] <= totals[ptr2]:
-                print 'particle selected is ', ptr2
-                X_new.append(X[ptr2])
-                ptr1 = ptr1 + 1
-            else:
-                ptr2 = ptr2 + 1
-        '''
-        #print 'Num of particles = ', len(X_new)
-        
         return X_new
 
     # @profile
@@ -382,17 +359,28 @@ class ParticleFilter():
         X_temp = []  # new partile set
         M = len(self.X) # Number of particles
 
+        # partial_update = partial(update, pos_prev, pos_curr, z_t, self)
+        # pool = ThreadPool(2)
+        # pool.map(partial_update, range(M))
+
         '''
         For each particle
             update the particle using transition model (motion model)
             specify weight of the particle using sensor model
             add this particle to new set. '''
-        w = np.zeros(M)
+        # w = np.zeros(M)
         for m in range(M):
             x_m = self._update(self.X[m].state, pos_prev, pos_curr)
-            w_m = self.sensor_model.computeProbability(z_t, x_m)
-            w[m] = w_m
+            if self.sensor_model:
+                w_m = self.sensor_model.computeProbability(z_t, x_m)
+            elif self.lfield:
+                w_m = self.lfield.computeProbability(z_t, x_m)
+            # w[m] = w_m
             self.X_update[m] = Particle(x_m[0], x_m[1], x_m[2], w_m)
+
+        w = np.zeros(M)
+        for m in range(M):
+            w[m] = self.X_update[m].weight
 
         wSum = sum(w)
         for m in range(M):
