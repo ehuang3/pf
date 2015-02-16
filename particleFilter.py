@@ -282,13 +282,22 @@ class ParticleFilter():
         # print 'totals', totals
 
         
-        for i in range(M):
-            rnd = random.random() * running_total
-            for ind, total in enumerate(totals):
-                if rnd < total:
-                    X_new.append(X[ind])
-                    # print ind
-                    break
+        # for i in range(M):
+        #     rnd = random.random() * running_total
+        #     for ind, total in enumerate(totals):
+        #         if rnd < total:
+        #             X_new.append(X[ind])
+        #             # print ind
+        #             break
+
+        # Uniformly sample from the running total.
+        i = 0
+        for r in np.linspace(0, running_total, M, endpoint=False):
+            while totals[i] <= r:
+                i = i + 1
+            if r < totals[i]:
+                X_new.append(X[i])
+
         
         '''
         for i in range(M):
