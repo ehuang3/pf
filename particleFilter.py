@@ -8,6 +8,8 @@
 
 import numpy as np
 from numpy.linalg import inv
+from visualization import *
+
 
 import random
 
@@ -25,11 +27,7 @@ def transform_to_state_2d(H):
     return np.array([H[0,2], H[1,2], np.math.atan2(H[1,0], H[0,0])])
 
 
-class Particle(object):
-    ''' Particle in the particle filter '''
-    def __init__(self, x, y, theta, weight):
-        self.state = [x, y, theta]
-        self.weight = weight    # importance weight
+
 
 class Pos():
     ''' Posiition of the robot '''
@@ -47,9 +45,12 @@ class laserReading():
         return None
 
 class SensorModel():
-    def __init__(self, z_map, z_hit, z_short, z_max, z_rand):
+    def __init__(self, z_map, z_hit, z_max, z_rand):
         """Beam based sensor model"""
-        self.z_T = np.array([z_hit, z_short, z_max, z_rand])
+        self.z_T = np.array([z_hit, z_max, z_rand])
+        self.z_hit = z_hit
+        self.z_max = z_max
+        self.z_rand = z_rand
         self.initSensor(z_map)
 
     def initSensor(self, map):
@@ -59,23 +60,22 @@ class SensorModel():
     def computeProbability(self, z_t, x_t):
         """Compute the probability of z_t at x_t"""
 
-        # Get the robot's x, y, and theta in world coordinates.
-        x_r = x_t[0]
-        y_r = x_t[1]
-        t_r = x_t[2]
+        # Get the laser's x, y, and theta
+        T_laser2odom = state_to_transform_2d(z_t[3:6])
+        T_robot2odom = state_to_transform_2d(z_t[0:3])
+        T_robot2world = state_to_transform_2d(x_t)
+        T_laser2world = np.dot(T_robot2world, np.dot(inv(T_robot2odom), T_laser2odom))
 
-        # Get the laser's x, y, and theta relative to odometry coordinates.
-        dx_l = z_t[3] - z_t[0]
-        dy_l = z_t[4] - z_t[1]
-        dt_l = z_t[5] - z_t[2]
+        # Convert laser to world frame x y theta.
+        l_w = transform_to_state_2d(T_laser2world)
 
         # Compute the laser's x, y, and theta in word coordinates.
-        x_w = x_r + dx_l
-        y_w = y_r + dy_l
-        t_w = t_r + dt_l
+        x_w = l_w[0]
+        y_w = l_w[1]
+        t_w = l_w[2]
 
         # Build matrix of laser angles cosines and sines for projection.
-        t_s = np.linspace(0, np.pi, 180, true) # scan theta
+        t_s = np.linspace(0, np.pi, 180, True) # scan theta
         cos_s = np.cos(t_w + t_s)
         sin_s = np.sin(t_w + t_s)
 
@@ -83,41 +83,47 @@ class SensorModel():
         z = z_t[6:]
 
         # Project measurements into world frame.
-        x_z = x_w + np.multiply(z, cos_s)
-        y_z = y_w + np.multiply(z, sin_s)
+        x_z = (x_w + np.multiply(z, cos_s)) / 10.0
+        y_z = (y_w + np.multiply(z, sin_s)) / 10.0
 
         # Get grid cell indicies. The map origin is located at bottom left.
         x_z = x_z.astype('int32', copy=False)
         y_z = y_z.astype('int32', copy=False)
 
         # Clip coordinates to map size.
-        cols = self.map.shape[1]
-        rows = self.map.shape[0]
-        np.clip(x_z, 0, cols)
-        np.clip(y_z, 0, rows)
+        cols = self.map.grid.shape[1]
+        rows = self.map.grid.shape[0]
+        x_z = np.clip(x_z, 0, cols-1)
+        y_z = np.clip(y_z, 0, rows-1)
 
         # Get occupancy probabilities associated with each laser reading.
-        p_hit = self.map[np.array([y_z, x_z])]
+        p_hit = 1 - self.map.grid[y_z, x_z]
 
         # Get error distribution.
-        p_rand = 1 / z_rand * np.ones(180)
-        p_rand[z > z_max] = 0
+        p_rand = 1 / self.z_rand * np.ones(180)
+        p_rand[z > self.z_max] = 0
 
         # Get the max threshold distribution.
         p_max = np.ones(180)
-        p_max[z < z_max] = 0
+        p_max[z < self.z_max] = 0
 
         # Compute the probability of z_t given x_t
-        p_z = z_hit * p_hit + z_rand * p_rand + (1 - z_hit - z_rand) * p_max
+        p_z = self.z_hit * p_hit + self.z_rand * p_rand + self.z_max * p_max
 
-        return p_z  
+        weight = np.exp(np.sum(np.log(p_z)))
+
+        return weight
 
 class ParticleFilter():
     ''' The particle filter '''
     def __init__(self):
         self.X = []  # set of particles
         self.prevPos = None
+        self.sensor_model = []
         return
+
+    def setSensorModel(self, sensor_model):
+        self.sensor_model = sensor_model
 
     def initParticles(self, map):
         ''' uniforly distributes the particles in free areas '''
@@ -132,8 +138,26 @@ class ParticleFilter():
                         w = random.random()
                         #self.X.append(Particle(x, y, theta, 1))
                         self.X.append(Particle(x, y, theta, w))
+        return
 
-        return            
+    def run(self, map, z):
+        # Initialize the particles uniformly.
+        self.initParticles(map)
+
+        vis = Visualization()
+
+        vis.drawMap(map)
+
+        # Outer loop.
+        pos_prev = z[0, 0:3]
+        for i in range(z.shape[0]):
+            pos_curr = z[i, 0:3]
+            z_t = z[i, 0:186]
+            self.step(pos_prev, pos_curr, z_t)
+            pos_prev = pos_curr
+            vis.drawParticles(self.X)
+            print i
+
 
     # private function
     def _update(self, prevPos_W, prevPos_Odom, pos_Odom):
@@ -157,9 +181,9 @@ class ParticleFilter():
         T_Rprev2odom = state_to_transform_2d(prevPos_Odom)
 
         T_Rnew2Rprev = np.dot(inv(T_Rprev2odom), T_Rnew2odom)
-        
+
         T_Rnew2W = np.dot(state_to_transform_2d(prevPos_W), T_Rnew2Rprev)
-        
+
         pos_W = transform_to_state_2d(T_Rnew2W)
 
         # Maybe we can add some noise
@@ -213,7 +237,7 @@ class ParticleFilter():
 
         return X_new
 
-    def step(self, X_prev, u_t, z_t):
+    def step(self, pos_prev, pos_curr, z_t):
         '''
         This steps through particle filter at time t and generate new belief state.
         @param X_prev : List of Particle instances. Particle set at time t-1 .
@@ -222,24 +246,24 @@ class ParticleFilter():
         returns : List of Particle instances. Particle set at time t.
         '''
 
-        X_temp = None  # new partile set
+        X_temp = []  # new partile set
         M = len(self.X) # Number of particles
 
         '''
-        For each particle 
+        For each particle
             update the particle using transition model (motion model)
             specify weight of the particle using sensor model
             add this particle to new set. '''
         for m in range(M):
-            x_t = _update(self.X[m].state, )
-
-
+            x_m = self._update(self.X[m].state, pos_prev, pos_curr)
+            w_m = self.sensor_model.computeProbability(z_t, x_m)
+            X_temp.append(Particle(x_m[0], x_m[1], x_m[2], w_m))
 
         '''
         Generate new set of particles from above particle using sampling by 
         replacement. Each particle is chosen by probability proportional to 
         its importance weight. '''
-        self.X = _resample(X_temp)
+        self.X = self._resample(X_temp)
 
         return None
 

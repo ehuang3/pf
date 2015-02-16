@@ -1,18 +1,5 @@
 #!/usr/bin/env python
-'''
-    Created On: Feb 13, 2015
-    Author: Nehchal Jindal
-            Eric Huang
 
-    Desc: localization of the robot in given map
-
-    Lab 1
-
-    CS8803: Statistical Techniques in Robotics
-    Instructor: Byron Boots
-    Spring '15
-'''
-import cv2
 import numpy as np
 import pylab as pl
 import argparse
@@ -52,11 +39,9 @@ def main():
     # Convert z into full numpy array.
     z = np.array(z, dtype='float64')
 
-    # Run filter
-    filter = ParticleFilter()
-    filter.setSensorModel(SensorModel(map, 0.7, 0.29, 0.01))
-    filter.run(map, z)
+    # 
 
 
 if __name__ == '__main__':
     main()
+

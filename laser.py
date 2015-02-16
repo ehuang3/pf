@@ -49,8 +49,7 @@ def main():
             z_l[z_i] = z[i,j]
             z_i += 1
 
-    print z[z > 8000]
-
+    # print z[z > 8000]
     pl.figure()
     n, bins, patches = pl.hist(z_l, 100, normed=1, histtype='bar')
     pl.setp(patches, 'facecolor', 'g', 'alpha', 0.75)
