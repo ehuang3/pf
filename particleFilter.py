@@ -11,9 +11,13 @@ from numpy.linalg import inv
 from visualization import *
 import pylab as plt
 
+from numpy import *
+
 import copy
 
-from joblib import Parallel, delayed
+from scipy.stats import norm
+
+#from joblib import Parallel, delayed
 
 import random
 
@@ -63,8 +67,36 @@ class SensorModel():
         """Build forward sensor model based on map"""
         self.map = map
 
+    def rayTrace(self, pos_world, angle):
+        '''
+        Returns the distance of nearest obstacle in the 
+        given direction
+        @param pos_world: [x y theta]. pos of laser in world frame.
+        @param angle: angle in which direction to look in radians
+        '''
+        x = int(pos_world[0]/10)
+        y = int(pos_world[1]/10)
+        t = int(pos_world[2])   # theta
+
+        for d in range(0, 800, 2):
+            cell_x = int(x + d*cos(t + angle))
+            cell_y = int(y + d*sin(t + angle))
+            
+            if cell_x > 799 or cell_x < 0:
+                return d * 10.0
+            if cell_y > 799 or cell_y < 0:
+                return d * 10.0
+
+            # if cell is occupied
+            if self.map.grid[cell_x, cell_y] < 0.2:
+                return d*10.0
+
+
     def computeProbability(self, z_t, x_t):
-        """Compute the probability of z_t at x_t"""
+        """Compute the probability of z_t at x_t
+        @param: z_t : laser data including odometery
+        @param: x_t : robot position in world frame
+        """
 
         # Get the laser's x, y, and theta
         T_laser2odom = state_to_transform_2d(z_t[3:6])
@@ -76,34 +108,53 @@ class SensorModel():
         l_w = transform_to_state_2d(T_laser2world)
 
         # Compute the laser's x, y, and theta in word coordinates.
-        x_w = l_w[0]
-        y_w = l_w[1]
-        t_w = l_w[2]
+        #x_w = l_w[0]
+        #y_w = l_w[1]
+        #t_w = l_w[2]
 
         # Build matrix of laser angles cosines and sines for projection.
-        t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 180, True) # scan theta
-        cos_s = np.cos(t_w + t_s)
-        sin_s = np.sin(t_w + t_s)
+        #t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 180, True) # scan theta
+        
+        # select 8 values
+        t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 8, True) # scan theta
+        #cos_s = np.cos(t_w + t_s)
+        #sin_s = np.sin(t_w + t_s)
 
         # Get laser measurements.
-        z = z_t[6:]
+        #z = z_t[6:]
+        ind = np.linspace(0, 179, 8)
+        z = []
+        for i in ind:
+            z.append(z_t[int(i)])
 
         # Project measurements into world frame.
-        x_z = (x_w + np.multiply(z, cos_s)) / 10.0
-        y_z = (y_w + np.multiply(z, sin_s)) / 10.0
+        # x_z = (x_w + np.multiply(z, cos_s))
+         #y_z = (y_w + np.multiply(z, sin_s))
+        #x_z = (x_w + np.multiply(z, cos_s)) / 10.0
+        #y_z = (y_w + np.multiply(z, sin_s)) / 10.0
 
         # Get grid cell indicies. The map origin is located at bottom left.
-        x_z = x_z.astype('int32', copy=False)
-        y_z = y_z.astype('int32', copy=False)
+        #x_z = x_z.astype('int32')
+        #y_z = y_z.astype('int32', copy=False)
 
         # Clip coordinates to map size.
         cols = self.map.grid.shape[1]
         rows = self.map.grid.shape[0]
-        x_z = np.clip(x_z, 0, cols-1)
-        y_z = np.clip(y_z, 0, rows-1)
+        #x_z = np.clip(x_z, 0, cols-1)
+        #y_z = np.clip(y_z, 0, rows-1)
 
         # Get occupancy probabilities associated with each laser reading.
-        p_hit = 1 - self.map.grid[y_z, x_z]
+        #p_hit = 1 - self.map.grid[y_z, x_z]
+        p_hit = []
+        for i in range(8):
+            actualReading = self.rayTrace(l_w, t_s[i])
+            p = norm.pdf(z[i], actualReading, 500)
+            #print 'p', p
+            #print 'acutalReading', acutalReading
+            #print 'measuredReading', z[i]
+            p_hit.append(p)
+
+        p_hit = np.array(p_hit)
 
         # Get error distribution.
         p_rand = 1 / self.z_rand * np.ones(180)
@@ -114,9 +165,12 @@ class SensorModel():
         p_max[z < self.z_max] = 0
 
         # Compute the probability of z_t given x_t
-        p_z = self.z_hit * p_hit + self.z_rand * p_rand + self.z_max * p_max
+        #p_z = self.z_hit * p_hit + self.z_rand * p_rand + self.z_max * p_max
+        p_z = p_hit + 0.000001 # avoid zero in the log
 
         weight = np.exp(np.sum(np.log(p_z)))
+
+        #print 'weight', weight
 
         return weight
 
@@ -143,6 +197,7 @@ class ParticleFilter():
                 i = int(x/10.0)
                 j = int(y/10.0)
                 if (map.grid[i][j] > 0.8):
+                    #
                     for theta in np.linspace(-np.pi, np.pi, 10):
                         w = random.random()
                         #self.X.append(Particle(x, y, theta, 1))
@@ -198,9 +253,9 @@ class ParticleFilter():
         pos_W = transform_to_state_2d(T_Rnew2W)
 
         # Maybe we can add some noise
-        # pos_W[0] = pos_W[0] + np.random.normal(0, 1)
-        # pos_W[1] = pos_W[1] + np.random.normal(0, 1)
-        # pos_W[2] = pos_W[2] + np.random.normal(0, 0.01)
+        pos_W[0] = pos_W[0] + np.random.normal(0, 2)
+        pos_W[1] = pos_W[1] + np.random.normal(0, 2)
+        pos_W[2] = pos_W[2] + np.random.normal(0, 0.05)
 
         return pos_W
 
@@ -224,28 +279,44 @@ class ParticleFilter():
             totals.append(running_total)
 
         # sample with replacement
-        '''
+        # print 'totals', totals
+
+        
         for i in range(M):
             rnd = random.random() * running_total
             for ind, total in enumerate(totals):
                 if rnd < total:
                     X_new.append(X[ind])
+                    # print ind
+                    break
+        
+        '''
+        for i in range(M):
+            X_new.append(X[int(random.random()*M)])
+        '''
+
         '''
         rnds = []
         for i in range(M):
             rnd = random.random() * running_total
             rnds.append(rnd)
 
+        rnds.sort()
         ptr1 = 0
         ptr2 = 0
 
+        print rnds
+
         while ptr1 < M and ptr2 < M:
             if rnds[ptr1] <= totals[ptr2]:
-                X_new.append(X[ptr1])
+                print 'particle selected is ', ptr2
+                X_new.append(X[ptr2])
                 ptr1 = ptr1 + 1
             else:
                 ptr2 = ptr2 + 1
-
+        '''
+        #print 'Num of particles = ', len(X_new)
+        
         return X_new
 
 
@@ -274,11 +345,15 @@ class ParticleFilter():
             w[m] = w_m
             self.X_update[m] = Particle(x_m[0], x_m[1], x_m[2], w_m)
 
-        print M
-        print w
-        plt.hist(w, 1000)
+        wSum = sum(w)
+        for m in range(M):
+            self.X_update[m].weight = self.X_update[m].weight/wSum
+
+        print 'Mum of particles', M
+        #print w
+        #plt.hist(w, 1000)
         # plt.hist(w, 100, normed=1, histtype='bar')
-        plt.show()
+        #plt.show()
 
         '''
         Generate new set of particles from above particle using sampling by 
@@ -299,7 +374,10 @@ def testParticleFilter():
     # basic tests
     filter = ParticleFilter()
     filter.initParticles(map)
-    filter._resample(filter.X)
+
+    X = [Particle(0,0,0, 0.1), Particle(0,0,0, 0.1), Particle(0,0,0, 0.1)]
+  
+    print 'X after resampling', filter._resample(X)
 
     # test for update function
     pos = filter._update((5.0, 6.0, 0.0), (1, 2, 0.0), (2, 2, 0.0))
