@@ -24,8 +24,8 @@ from particleFilter import SensorModel
 
 def main():
     parser = argparse.ArgumentParser(description='Laser unit test')
-    parser.add_argument('--map', type=str, default='./data/map/wean.dat', help='Ground truth occupancy map')
-    parser.add_argument('--log', type=str, default='./data/log/robotdata1.log', help='Robot data log file')
+    parser.add_argument('--map', type=str, default='../data/map/wean.dat', help='Ground truth occupancy map')
+    parser.add_argument('--log', type=str, default='../data/log/robotdata1.log', help='Robot data log file')
     args = parser.parse_args()
 
     # Read in map.
