@@ -28,7 +28,8 @@ class Visualization():
         self.pixelsY = pixelsY  # size of window
         # self.win = GraphWin('Robot localizaton', pixelsX, pixelsY)
 
-        self.im = None
+        self.im = np.zeros((pixelsX, pixelsY, 3), np.uint8)
+        self.im1 = self.im.copy()
 
         self.count = 0
 
@@ -56,7 +57,7 @@ class Visualization():
                 rect.draw(self.win)
         '''
 
-        self.im = np.zeros((Xmax, Ymax, 3))
+        self.im = np.zeros((Xmax, Ymax, 3), np.uint8)
         self.imX = Xmax
         self.imY = Ymax
         self.sizeX = float(Xmax*map.resX)
@@ -70,6 +71,8 @@ class Visualization():
 
         cv2.imwrite('test/map_temp.jpg', self.im)
 
+        self.im1 = self.im.copy()
+
         return
 
     def plotMap(self, map):
@@ -80,7 +83,7 @@ class Visualization():
 
     def drawParticles(self, X):
         ''' Visualize the partiles '''
-        im_temp = self.im.copy()
+        #im_temp = self.im.copy()
         for p in X:
             '''
             pt = Point(p.state[0]*self.pixelsX/sizeX, p.state[1]*self.pixelsY/sizeY)
@@ -93,11 +96,59 @@ class Visualization():
             i = np.clip(i, 0, self.imX-1)
             j = np.clip(j, 0, self.imY-1)
 
-            im_temp[i][j][0] = 0
-            im_temp[i][j][1] = 0
-            im_temp[i][j][2] = 255
-
-        cv2.imwrite('test/' + str(self.count) + '.jpg', im_temp)
-        self.count = self.count + 1
+            self.im1[i][j][0] = 0
+            self.im1[i][j][1] = 0
+            self.im1[i][j][2] = 255
 
         return
+
+    def drawLaser(self, pos, z, angles):
+        '''
+        Draw the robot at pos x with the laser projections.
+        @param pos : [x, y, z]
+        @param z   : list of laser reading
+        @pararm angles: list of angles in radians
+        '''
+        x = int(pos[0]/10.0)
+        y = int(pos[1]/10.0)
+        t = pos[2]
+
+        # Draw green filled circle as robot
+        cv2.circle(self.im1, (x,y), 3, (255, 0, 0), -1)
+
+
+        # Draw lines for laser
+        for i in range(len(z)):
+            d = z[i]/10.0
+            #print x
+            #print y
+            #print t
+            #print angles[i]
+            #print d
+            #print np.cos(t + angles[i])
+            #print z
+            x_end = int(x + d*np.cos(t + angles[i]))
+            y_end = int(y + d*np.sin(t + angles[i]))
+            cv2.line(self.im1, (x, y), (x_end, y_end), (0, 255, 0))
+
+
+    def writeText(self, text):
+        cv2.putText(
+                        self.im1, 
+                        text, 
+                        (20, 20),
+                        cv2.FONT_HERSHEY_COMPLEX_SMALL,1,
+                        (255, 255, 255))
+
+    def saveImage(self):
+        cv2.imwrite('test/' + str(self.count) + '.jpg', self.im1)
+        self.count = self.count + 1
+        self.im1 = self.im.copy()
+
+def testVisualization():
+    ''' basic testing for Visualization '''
+    vis = Visualization()
+
+if __name__ == '__main__':
+    testVisualization()
+

@@ -123,9 +123,10 @@ class SensorModel():
         # Get laser measurements.
         #z = z_t[6:]
         ind = np.linspace(0, 179, 8)
-        z = []
-        for i in ind:
-            z.append(z_t[int(i)])
+        z = [ z_t[int(i) + 6] for i in ind]
+        #z = []
+        #for i in ind:
+        #    z.append(z_t[6 + int(i)])
 
         # Project measurements into world frame.
         # x_z = (x_w + np.multiply(z, cos_s))
@@ -191,8 +192,8 @@ class ParticleFilter():
         self.X = []
         self.X_update = []
 
-        for x in np.linspace(0, 7999, 100):
-            for y in np.linspace(0, 7999, 100):
+        for x in np.linspace(0, 7999, 50):
+            for y in np.linspace(0, 7999, 50):
                 # add only if it lies in free area
                 i = int(x/10.0)
                 j = int(y/10.0)
@@ -208,6 +209,10 @@ class ParticleFilter():
         return
 
     def run(self, map, z):
+        '''
+        map : instance of class map
+        z : 2D array. Each element is reading at particular time instant
+        '''
         # Initialize the particles uniformly.
         self.initParticles(map)
 
@@ -222,6 +227,26 @@ class ParticleFilter():
             self.step(pos_prev, pos_curr, z_t)
             pos_prev = pos_curr
             vis.drawParticles(self.X)
+
+            # find particle with max weight
+            maxW = 0;
+            maxInd = 0
+            for ind, p in enumerate(self.X):
+                if p.weight > maxW:
+                    maxW = p.weight
+                    maxInd = ind
+
+            t_s = np.linspace(-np.pi/2.0, np.pi/2.0, 8, True) # scan theta
+            ind = np.linspace(0, 179, 8)
+            zTemp = [ z[i, int(each) + 6] for each in ind]
+
+            vis.drawLaser(self.X[maxInd].state, zTemp, t_s)
+
+            text = 'frame = ' + str(i) + ', t = ' + str(z[i, 186])
+            vis.writeText(text)
+
+            vis.saveImage()
+
             print i
 
 
