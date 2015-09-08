@@ -286,7 +286,7 @@ class ParticleFilter():
         return
 
     #@profile
-    def run(self, map, z):
+    def run(self, map, z, fpath):
         '''
         map : instance of class map
         z : 2D array. Each element is reading at particular time instant
@@ -294,9 +294,8 @@ class ParticleFilter():
         # Initialize the particles uniformly.
         self.initParticles(map)
 
-        vis = Visualization()
+        vis = Visualization(fpath)
         vis.drawMap(map)
-
 
         # Outer loop.
         pos_prev = z[0, 0:3]
@@ -362,9 +361,9 @@ class ParticleFilter():
         pos_W = transform_to_state_2d(T_Rnew2W)
 
         # Maybe we can add some noise
-        pos_W[0] = pos_W[0] + np.random.normal(0, 30)
-        pos_W[1] = pos_W[1] + np.random.normal(0, 30)
-        pos_W[2] = pos_W[2] + np.random.normal(0, 0.20)
+        pos_W[0] = pos_W[0] + np.random.normal(0, 2)
+        pos_W[1] = pos_W[1] + np.random.normal(0, 2)
+        pos_W[2] = pos_W[2] + np.random.normal(0, 0.05)
 
         return pos_W
 
@@ -440,12 +439,12 @@ class ParticleFilter():
         '''
 
         # if robot doesn't move, do nothing
-        if abs(pos_prev[0] - pos_curr[0]) < 0.1:   # 1 mm
-            return None
-        if abs(pos_prev[1] - pos_curr[1]) < 0.01:  # 1 mm
-            return None
-        if abs(pos_prev[2] - pos_curr[2]) < 0.005:  # 0.25 deg
-            return None
+        # if abs(pos_prev[0] - pos_curr[0]) < 0.1:   # 1 mm
+        #     return None
+        # if abs(pos_prev[1] - pos_curr[1]) < 0.01:  # 1 mm
+        #     return None
+        # if abs(pos_prev[2] - pos_curr[2]) < 0.005:  # 0.25 deg
+        #     return None
 
         X_temp = []  # new partile set
         M = len(self.X) # Number of particles

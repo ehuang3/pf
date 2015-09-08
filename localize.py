@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--map', type=str, default='../data/map/wean.dat', help='Ground truth occupancy map')
     parser.add_argument('--log', type=str, default='../data/log/robotdata1.log', help='Robot data log file')
     parser.add_argument('--lfield', type=str, default='./config/lfield_40.csv', help='Likelihood field')
+    parser.add_argument('--save', type=str, default='./test/', help='Which folder to save to.')
     args = parser.parse_args()
 
     # Read in map.
@@ -51,8 +52,8 @@ def main():
                 num_laser += 1
                 z.append(np.array(token[1:]))
 
-    n = len(z)
-    z = [z[i] for i in range(0, n-1, 3)]
+    # n = len(z)
+    # z = [z[i] for i in range(0, n-1, 3)]
 
     # Convert z into full numpy array.
     z = np.array(z, dtype='float64')
@@ -65,7 +66,7 @@ def main():
     filter = ParticleFilter()
     # filter.setSensorModel(SensorModel(map, 0.7, 0.29, 0.01))
     filter.setLikelihoodField(L)
-    filter.run(map, z)
+    filter.run(map, z, args.save)
 
 
 if __name__ == '__main__':

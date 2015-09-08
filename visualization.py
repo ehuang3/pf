@@ -23,13 +23,14 @@ class Particle(object):
 class Visualization():
 
 
-    def __init__(self, pixelsX=800, pixelsY=800):
+    def __init__(self, fpath, pixelsX=800, pixelsY=800):
         self.pixelsX = pixelsX  # size of window
         self.pixelsY = pixelsY  # size of window
         # self.win = GraphWin('Robot localizaton', pixelsX, pixelsY)
 
         self.im = np.zeros((pixelsX, pixelsY, 3), np.uint8)
         self.im1 = self.im.copy()
+        self.path = fpath
 
         self.count = 0
 
@@ -69,7 +70,7 @@ class Visualization():
                 self.im[x][y][1] = c
                 self.im[x][y][2] = c
 
-        cv2.imwrite('test/map_temp.jpg', self.im)
+        cv2.imwrite(self.path + '/map.jpg', self.im)
 
         self.im1 = self.im.copy()
 
@@ -137,7 +138,7 @@ class Visualization():
                         (255, 255, 255))
 
     def saveImage(self):
-        cv2.imwrite('test/' + str(self.count) + '.jpg', self.im1)
+        cv2.imwrite(self.path + '/' + str(self.count) + '.jpg', self.im1)
         self.count = self.count + 1
         self.im1 = self.im.copy()
 

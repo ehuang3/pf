@@ -40,7 +40,7 @@ class LikelihoodField:
             line = f.readline()
             words = line.split()
             for x in range(800):
-                self.grid[y][x] = float(words[x])
+                self.grid[x][y] = float(words[x])
 
     def computeField(self):
         print "Computing likelihood field..."
